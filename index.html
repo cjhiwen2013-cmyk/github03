@@ -42,12 +42,14 @@
       padding: 42px 0;
     }
 
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 300px;
-      gap: 20px;
-      align-items: start;
-    }
+.layout {
+  display: flex;
+  justify-content: center;
+}
+
+.panel {
+  width: min(680px, 100%);
+}
 
     .panel,
     .info {
@@ -253,7 +255,7 @@
         <div class="brand">
           <div class="mark" aria-hidden="true">AI</div>
           <div>
-            <h1 id="form-title">AI協會技術需求1</h1>
+            <h1 id="form-title">AI協會技術需求</h1>
             <p class="subtitle">請填寫技術需求內容</p>
           </div>
         </div>
