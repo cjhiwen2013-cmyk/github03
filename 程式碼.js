@@ -205,6 +205,14 @@ function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrls, fileCou
  */
 function setupSheet() {
   const sheet = getBackendSheet_();
+  
+  // 呼叫一次 DriveApp，強制觸發 Google Apps Script 的雲端硬碟權限授權提示
+  try {
+    DriveApp.getRootFolder();
+  } catch (e) {
+    Logger.log("DriveApp 授權測試: " + e.toString());
+  }
+
   try {
     SpreadsheetApp.getUi().alert(`後台試算表已設定完成：${sheet.getParent().getUrl()}`);
   } catch (e) {
