@@ -42,14 +42,14 @@
       padding: 42px 0;
     }
 
-.layout {
-  display: flex;
-  justify-content: center;
-}
+    .layout {
+      display: flex;
+      justify-content: center;
+    }
 
-.panel {
-  width: min(680px, 100%);
-}
+    .panel {
+      width: min(680px, 100%);
+    }
 
     .panel,
     .info {
@@ -245,14 +245,13 @@
       }
     }
     
- .logo {
-  width: 100px;
-  height: 100px;
-  object-fit: contain;
-  border-radius: 8px;
-}    
+    .logo {
+      width: 100px;
+      height: 100px;
+      object-fit: contain;
+      border-radius: 8px;
+    }    
   </style>
- 
 </head>
 <body>
   <main>
@@ -279,6 +278,9 @@
           <label for="mainDemand">主要需求</label>
           <textarea id="mainDemand" name="mainDemand" required></textarea>
 
+          <label for="message">訊息</label>
+          <textarea id="message" name="message"></textarea>
+
           <label for="demandDate">需求日期</label>
           <input id="demandDate" name="demandDate" type="date" required>
 
@@ -290,8 +292,6 @@
           <div id="status" class="status" role="status" aria-live="polite"></div>
         </form>
       </section>
-
-
     </div>
   </main>
 
@@ -327,6 +327,7 @@
         unit: String(data.get("unit") || "").trim(),
         email: String(data.get("email") || "").trim(),
         mainDemand: String(data.get("mainDemand") || "").trim(),
+        message: String(data.get("message") || "").trim(),
         demandDate: String(data.get("demandDate") || "").trim(),
         submittedAt: formattedDate,
         source: location.href
