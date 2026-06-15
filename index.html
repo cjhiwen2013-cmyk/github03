@@ -234,9 +234,7 @@
         padding: 18px 0;
       }
 
-      .layout {
-        grid-template-columns: 1fr;
-      }
+      /* 已移除無效的 grid-template-columns 規則 */
 
       .panel {
         padding: 22px;
@@ -333,18 +331,24 @@
       setStatus("資料送出中...");
 
       try {
-        await fetch(GOOGLE_SCRIPT_URL, {
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
-          mode: "no-cors",
+          mode: "cors",
           headers: {
-            "Content-Type": "text/plain;charset=utf-8"
+            "Content-Type": "text/plain"
           },
           body: JSON.stringify(getPayload())
         });
 
-        form.reset();
-        setStatus("已送出。請等待技術委員會與您確認詳細需求。", "success");
+        const result = await response.json();
+        if (result.status === "success") {
+          form.reset();
+          setStatus("已送出。請等待技術委員會與您確認詳細需求。", "success");
+        } else {
+          throw new Error(result.message || "主機處理失敗");
+        }
       } catch (error) {
+        console.error("提交錯誤:", error);
         setStatus("送出失敗，請稍後再試或聯絡管理者。", "error");
       } finally {
         submitButton.disabled = false;
