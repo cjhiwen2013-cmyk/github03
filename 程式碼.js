@@ -172,7 +172,7 @@ function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrls, fileCou
         `Google 試算表連結（僅限管理員）：${sheet.getParent().getUrl()}`
       ].join("\n");
       
-      GmailApp.sendEmail(ownerEmail, adminSubject, adminBody);
+      GmailApp.sendEmail(ownerEmail, adminSubject, adminBody, { name: "TAIAA 表單系統" });
     } catch (err) {
       Logger.log("管理員信件發送失敗: " + err.toString());
     }
@@ -193,7 +193,7 @@ function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrls, fileCou
         "此信件為系統自動發送，請勿直接回覆。"
       ].join("\n");
       
-      GmailApp.sendEmail(submitterEmail, userSubject, userBody);
+      GmailApp.sendEmail(submitterEmail, userSubject, userBody, { name: "TAIAA 表單系統" });
     } catch (err) {
       Logger.log("填表人信件發送失敗: " + err.toString());
     }
