@@ -250,6 +250,74 @@
       height: 100px;
       object-fit: contain;
       border-radius: 8px;
+    }
+
+    /* Drag & Drop Zone */
+    .dropzone {
+      border: 2px dashed var(--line);
+      border-radius: 8px;
+      padding: 30px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      transition: border-color 0.2s, background-color 0.2s;
+      margin-bottom: 15px;
+    }
+    .dropzone.dragover {
+      border-color: var(--primary);
+      background: rgba(23, 107, 135, 0.05);
+    }
+    .dropzone p {
+      margin: 0 0 10px 0;
+      font-weight: bold;
+      color: var(--muted);
+    }
+    .dropzone span {
+      font-size: 13px;
+      color: var(--muted);
+      opacity: 0.8;
+    }
+    .file-list {
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--page);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .file-item .file-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 85%;
+    }
+    .file-item .file-name {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .file-item .file-size {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .file-item .remove-btn {
+      color: var(--danger);
+      background: transparent;
+      border: none;
+      font-weight: bold;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 5px;
+      min-height: auto;
     }    
   </style>
 </head>
@@ -278,8 +346,13 @@
           <label for="mainDemand">主要需求</label>
           <textarea id="mainDemand" name="mainDemand" required></textarea>
 
-          <label for="file">上傳檔案 (限 50MB 以下)</label>
-          <input type="file" id="file" name="file">
+          <label for="file">上傳檔案 (最多 10 個檔案，總大小限 50MB 以下)</label>
+          <div id="dropzone" class="dropzone">
+            <p>拖曳檔案至此，或點擊選取檔案</p>
+            <span>最多支援上傳 10 個檔案，總檔案大小需在 50MB 以內</span>
+            <input type="file" id="file" name="file" multiple style="display: none;">
+          </div>
+          <div id="fileList" class="file-list"></div>
 
           <label for="demandDate">需求日期</label>
           <input id="demandDate" name="demandDate" type="date" required>
@@ -304,6 +377,83 @@
     function setStatus(message, type = "") {
       statusBox.className = `status ${type}`.trim();
       statusBox.textContent = message;
+    }
+
+    const dropzone = document.querySelector("#dropzone");
+    const fileInput = document.querySelector("#file");
+    const fileListContainer = document.querySelector("#fileList");
+    let selectedFiles = []; // 儲存選取的 File 物件
+
+    // 點擊區域觸發選擇檔案
+    dropzone.addEventListener("click", () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      handleFiles(e.target.files);
+      fileInput.value = ""; // 清空 value 以便重複選擇相同檔案
+    });
+
+    // 拖曳相關事件
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("dragover");
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+      handleFiles(e.dataTransfer.files);
+    });
+
+    function handleFiles(files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // 檢查是否重複
+        if (selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+          alert(`檔案「${file.name}」已在待上傳清單中！`);
+          continue;
+        }
+
+        // 限制最多 10 個檔案
+        if (selectedFiles.length >= 10) {
+          alert("最多只能上傳 10 個檔案！");
+          break;
+        }
+
+        selectedFiles.push(file);
+      }
+      renderFileList();
+    }
+
+    function renderFileList() {
+      fileListContainer.innerHTML = "";
+      selectedFiles.forEach((file, index) => {
+        const item = document.createElement("div");
+        item.className = "file-item";
+        
+        const info = document.createElement("div");
+        info.className = "file-info";
+        info.innerHTML = `<span class="file-name">${file.name}</span><span class="file-size">(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>`;
+        
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "remove-btn";
+        removeBtn.textContent = "×";
+        removeBtn.addEventListener("click", () => {
+          selectedFiles.splice(index, 1);
+          renderFileList();
+        });
+        
+        item.appendChild(info);
+        item.appendChild(removeBtn);
+        fileListContainer.appendChild(item);
+      });
     }
 
     function fileToBase64(file) {
@@ -331,19 +481,22 @@
       hours = hours ? hours : 12;
       const formattedDate = `${year}/${month}/${date} ${ampm} ${hours}:${minutes}:${seconds}`;
 
-      let fileData = "";
-      let fileName = "";
-      let fileType = "";
+      // 檢查總檔案大小與編碼
+      let totalSize = 0;
+      const filesPayload = [];
       
-      const fileInput = document.querySelector("#file");
-      if (fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        if (file.size > 50 * 1024 * 1024) {
-          throw new Error("檔案大小不能超過 50MB！");
+      for (const file of selectedFiles) {
+        totalSize += file.size;
+        if (totalSize > 50 * 1024 * 1024) {
+          throw new Error("所有上傳檔案的總大小不能超過 50MB！");
         }
-        fileName = file.name;
-        fileType = file.type;
-        fileData = await fileToBase64(file);
+        
+        const base64Data = await fileToBase64(file);
+        filesPayload.push({
+          name: file.name,
+          type: file.type,
+          data: base64Data
+        });
       }
 
       return {
@@ -354,9 +507,7 @@
         demandDate: String(data.get("demandDate") || "").trim(),
         submittedAt: formattedDate,
         source: location.href,
-        fileName: fileName,
-        fileType: fileType,
-        fileData: fileData
+        files: filesPayload
       };
     }
 
@@ -385,13 +536,15 @@
         const result = await response.json();
         if (result.status === "success") {
           form.reset();
+          selectedFiles = []; // 清空選取檔案
+          renderFileList();
           setStatus("已送出。請等待技術委員會與您確認詳細需求。", "success");
         } else {
           throw new Error(result.message || "主機處理失敗");
         }
       } catch (error) {
         console.error("提交錯誤:", error);
-        setStatus("送出失敗，請稍後再試或聯絡管理者。", "error");
+        setStatus("送出失敗: " + error.message, "error");
       } finally {
         submitButton.disabled = false;
       }

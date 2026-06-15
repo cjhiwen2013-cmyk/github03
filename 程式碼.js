@@ -1,7 +1,7 @@
 const SHEET_NAME = "AI協會技術需求";
 
-// 修正：HEADERS 將 "訊息" 替換成 "上傳檔案"
-const HEADERS = ["編號", "送出時間", "名字", "單位", "電子郵件", "主要需求", "上傳檔案", "需求日期", "來源頁面"];
+// 修正：HEADERS 新增 "上傳資料數量" 欄位
+const HEADERS = ["編號", "送出時間", "名字", "單位", "電子郵件", "主要需求", "上傳檔案", "上傳資料數量", "需求日期", "來源頁面"];
 
 const OWNER_EMAIL = "cjhiwen2013@gmail.com";
 const PARENT_FOLDER_ID = "1OIKzDCOdm_LYvfuEsG7bOZdONfGEixI7";
@@ -36,23 +36,39 @@ function doPost(e) {
     var serialNumber = generateSerialNumber_(sheet);
     
     // 1. 在雲端硬碟建立專屬資料夾 (名稱格式為: "編號+填表人姓名")
-    var parentFolder = DriveApp.getFolderById(PARENT_FOLDER_ID);
+    var parentFolder;
+    try {
+      parentFolder = DriveApp.getFolderById(PARENT_FOLDER_ID);
+    } catch (folderError) {
+      // 權限不足或資料夾不存在的防錯處理：改用根目錄
+      parentFolder = DriveApp.getRootFolder();
+      Logger.log("無法存取指定資料夾，已自動改寫入 Google Drive 根目錄。錯誤: " + folderError.toString());
+    }
+    
     var folderName = serialNumber + "_" + data.name;
     var subFolder = parentFolder.createFolder(folderName);
     var folderUrl = subFolder.getUrl();
     
-    // 2. 如果有上傳檔案，將其存入專屬資料夾
-    var fileUrl = "";
-    if (data.fileData && data.fileName) {
-      var decoded = Utilities.base64Decode(data.fileData);
-      var blob = Utilities.newBlob(decoded, data.fileType, data.fileName);
-      var file = subFolder.createFile(blob);
-      // 設定共用權限為知道連結的人即可檢視
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      fileUrl = file.getUrl();
+    // 2. 如果有多個上傳檔案，將其存入專屬資料夾中
+    var fileUrls = [];
+    var fileCount = 0;
+    if (data.files && data.files.length > 0) {
+      fileCount = data.files.length;
+      for (var i = 0; i < data.files.length; i++) {
+        var f = data.files[i];
+        if (f.data && f.name) {
+          var decoded = Utilities.base64Decode(f.data);
+          var contentType = f.type || "application/octet-stream";
+          var blob = Utilities.newBlob(decoded, contentType, f.name);
+          var file = subFolder.createFile(blob);
+          // 設定共用權限為「任何知道連結的人皆可檢視」
+          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          fileUrls.push(file.getUrl());
+        }
+      }
     }
     
-    // 寫入資料（首欄為序列號，上傳檔案欄位寫入檔案連結，無檔案則寫入資料夾連結）
+    // 寫入資料（首欄為序列號，上傳檔案寫入資料夾連結，以及上傳資料數量）
     sheet.appendRow([
       serialNumber,     // 1. 序列號
       data.submittedAt, // 2. 送出時間
@@ -60,13 +76,14 @@ function doPost(e) {
       data.unit,        // 4. 單位
       data.email,       // 5. 電子郵件
       data.mainDemand,  // 6. 主要需求
-      fileUrl || folderUrl, // 7. 上傳檔案
-      data.demandDate,  // 8. 需求日期
-      data.source       // 9. 來源頁面
+      folderUrl,        // 7. 上傳檔案 (寫入專屬資料夾連結)
+      fileCount,        // 8. 上傳資料數量 (新增)
+      data.demandDate,  // 9. 需求日期
+      data.source       // 10. 來源頁面
     ]);
     
-    // 執行寄信 (帶入序列號, 檔案連結, 資料夾連結)
-    notifyOwner_(data, sheet, serialNumber, folderUrl, fileUrl);
+    // 執行寄信 (帶入序列號, 檔案數量, 資料夾連結, 個別檔案連結)
+    notifyOwner_(data, sheet, serialNumber, folderUrl, fileUrls, fileCount);
     
     return json_({ "status": "success" });
   } catch (error) {
@@ -113,11 +130,19 @@ function generateSerialNumber_(sheet) {
 /**
  * 分開寄信給管理員與填表人
  */
-function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrl) {
+function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrls, fileCount) {
   const ownerEmail = OWNER_EMAIL || Session.getEffectiveUser().getEmail();
   const submitterEmail = payload.email ? payload.email.trim() : "";
   
-  // 共用欄位內容 (最上方加入序列號)
+  // 建立個別檔案的文字列表
+  var filesListText = "無上傳檔案";
+  if (fileUrls && fileUrls.length > 0) {
+    filesListText = fileUrls.map(function(url, idx) {
+      return "  * 檔案 " + (idx + 1) + " 連結：" + url;
+    }).join("\n");
+  }
+
+  // 共用欄位內容
   const commonFields = [
     `編號：${serialNumber}`,
     `送出時間：${payload.submittedAt || ""}`,
@@ -126,7 +151,8 @@ function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrl) {
     `電子郵件：${payload.email || ""}`,
     `主要需求：${payload.mainDemand || ""}`,
     `雲端專屬資料夾：${folderUrl}`,
-    `上傳檔案連結：${fileUrl || "無上傳檔案"}`,
+    `上傳資料數量：${fileCount} 個檔案`,
+    `個別檔案連結：\n${filesListText}`,
     `需求日期：${payload.demandDate || ""}`,
     `來源頁面：${payload.source || ""}`
   ].join("\n");
