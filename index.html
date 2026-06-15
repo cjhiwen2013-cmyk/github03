@@ -275,6 +275,9 @@
           <label for="unit">單位</label>
           <input id="unit" name="unit" autocomplete="organization" required>
 
+          <label for="email">電子郵件</label>
+          <input id="email" name="email" type="email" autocomplete="email" required>
+
           <label for="mainDemand">主要需求</label>
           <textarea id="mainDemand" name="mainDemand" required></textarea>
 
@@ -310,6 +313,7 @@
       return {
         name: String(data.get("name") || "").trim(),
         unit: String(data.get("unit") || "").trim(),
+        email: String(data.get("email") || "").trim(),
         mainDemand: String(data.get("mainDemand") || "").trim(),
         demandDate: String(data.get("demandDate") || "").trim(),
         submittedAt: new Date().toISOString(),
@@ -349,4 +353,3 @@
   </script>
 </body>
 </html>
-
