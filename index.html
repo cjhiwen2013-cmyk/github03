@@ -278,8 +278,8 @@
           <label for="mainDemand">主要需求</label>
           <textarea id="mainDemand" name="mainDemand" required></textarea>
 
-          <label for="message">其他訊息</label>
-          <textarea id="message" name="message"></textarea>
+          <label for="file">上傳檔案 (限 50MB 以下)</label>
+          <input type="file" id="file" name="file">
 
           <label for="demandDate">需求日期</label>
           <input id="demandDate" name="demandDate" type="date" required>
@@ -306,7 +306,16 @@
       statusBox.textContent = message;
     }
 
-    function getPayload() {
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+      });
+    }
+
+    async function getPayload() {
       const data = new FormData(form);
       
       // 格式化送出時間為 "yyyy/M/d 上午/下午 hh:mm:ss"
@@ -322,15 +331,32 @@
       hours = hours ? hours : 12;
       const formattedDate = `${year}/${month}/${date} ${ampm} ${hours}:${minutes}:${seconds}`;
 
+      let fileData = "";
+      let fileName = "";
+      let fileType = "";
+      
+      const fileInput = document.querySelector("#file");
+      if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        if (file.size > 50 * 1024 * 1024) {
+          throw new Error("檔案大小不能超過 50MB！");
+        }
+        fileName = file.name;
+        fileType = file.type;
+        fileData = await fileToBase64(file);
+      }
+
       return {
         name: String(data.get("name") || "").trim(),
         unit: String(data.get("unit") || "").trim(),
         email: String(data.get("email") || "").trim(),
         mainDemand: String(data.get("mainDemand") || "").trim(),
-        message: String(data.get("message") || "").trim(),
         demandDate: String(data.get("demandDate") || "").trim(),
         submittedAt: formattedDate,
-        source: location.href
+        source: location.href,
+        fileName: fileName,
+        fileType: fileType,
+        fileData: fileData
       };
     }
 
@@ -343,16 +369,17 @@
       }
 
       submitButton.disabled = true;
-      setStatus("資料送出中...");
+      setStatus("資料與檔案上傳中...");
 
       try {
+        const payload = await getPayload();
         const response = await fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           mode: "cors",
           headers: {
             "Content-Type": "text/plain"
           },
-          body: JSON.stringify(getPayload())
+          body: JSON.stringify(payload)
         });
 
         const result = await response.json();
