@@ -308,13 +308,27 @@
 
     function getPayload() {
       const data = new FormData(form);
+      
+      // 格式化送出時間為 "yyyy/M/d 上午/下午 hh:mm:ss"
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      const date = now.getDate();
+      let hours = now.getHours();
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const ampm = hours >= 12 ? '下午' : '上午';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const formattedDate = `${year}/${month}/${date} ${ampm} ${hours}:${minutes}:${seconds}`;
+
       return {
         name: String(data.get("name") || "").trim(),
         unit: String(data.get("unit") || "").trim(),
         email: String(data.get("email") || "").trim(),
         mainDemand: String(data.get("mainDemand") || "").trim(),
         demandDate: String(data.get("demandDate") || "").trim(),
-        submittedAt: new Date().toISOString(),
+        submittedAt: formattedDate,
         source: location.href
       };
     }
