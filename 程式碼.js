@@ -35,25 +35,27 @@ function doPost(e) {
     // 產生序列號 (格式如: T2026061501)
     var serialNumber = generateSerialNumber_(sheet);
     
-    // 1. 在雲端硬碟建立專屬資料夾 (名稱格式為: "編號+填表人姓名")
-    var parentFolder;
-    try {
-      parentFolder = DriveApp.getFolderById(PARENT_FOLDER_ID);
-    } catch (folderError) {
-      // 權限不足或資料夾不存在的防錯處理：改用根目錄
-      parentFolder = DriveApp.getRootFolder();
-      Logger.log("無法存取指定資料夾，已自動改寫入 Google Drive 根目錄。錯誤: " + folderError.toString());
-    }
-    
-    var folderName = serialNumber + "_" + data.name;
-    var subFolder = parentFolder.createFolder(folderName);
-    var folderUrl = subFolder.getUrl();
-    
-    // 2. 如果有多個上傳檔案，將其存入專屬資料夾中
+    // 1. 如果有上傳檔案，才在雲端硬碟建立專屬資料夾，並將檔案存入
+    var folderUrl = "無上傳檔案";
     var fileUrls = [];
     var fileCount = 0;
+    
     if (data.files && data.files.length > 0) {
       fileCount = data.files.length;
+      
+      var parentFolder;
+      try {
+        parentFolder = DriveApp.getFolderById(PARENT_FOLDER_ID);
+      } catch (folderError) {
+        // 權限不足或資料夾不存在的防錯處理：改用根目錄
+        parentFolder = DriveApp.getRootFolder();
+        Logger.log("無法存取指定資料夾，已自動改寫入 Google Drive 根目錄。錯誤: " + folderError.toString());
+      }
+      
+      var folderName = serialNumber + "_" + data.name;
+      var subFolder = parentFolder.createFolder(folderName);
+      folderUrl = subFolder.getUrl();
+      
       for (var i = 0; i < data.files.length; i++) {
         var f = data.files[i];
         if (f.data && f.name) {
@@ -131,8 +133,10 @@ function generateSerialNumber_(sheet) {
  * 分開寄信給管理員與填表人
  */
 function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrls, fileCount) {
-  const ownerEmail = OWNER_EMAIL || Session.getEffectiveUser().getEmail();
-  const submitterEmail = payload.email ? payload.email.trim() : "";
+  const ownerEmail = (OWNER_EMAIL || Session.getEffectiveUser().getEmail()).trim().toLowerCase();
+  const submitterEmail = payload.email ? payload.email.trim().toLowerCase() : "";
+  
+
   
   // 建立個別檔案的文字列表
   var filesListText = "無上傳檔案";
@@ -142,8 +146,8 @@ function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrls, fileCou
     }).join("\n");
   }
 
-  // 共用欄位內容
-  const commonFields = [
+  // 管理者看見的欄位 (包含雲端專屬資料夾)
+  const adminFields = [
     `編號：${serialNumber}`,
     `送出時間：${payload.submittedAt || ""}`,
     `名字：${payload.name || ""}`,
@@ -157,6 +161,21 @@ function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrls, fileCou
     `來源頁面：${payload.source || ""}`
   ].join("\n");
 
+  // 填表人看見的欄位 (排除雲端專屬資料夾)
+  const userFields = [
+    `編號：${serialNumber}`,
+    `送出時間：${payload.submittedAt || ""}`,
+    `名字：${payload.name || ""}`,
+    `單位：${payload.unit || ""}`,
+    `電子郵件：${payload.email || ""}`,
+    `主要需求：${payload.mainDemand || ""}`,
+    `上傳資料數量：${fileCount} 個檔案`,
+    `個別檔案連結：\n${filesListText}`,
+    `需求日期：${payload.demandDate || ""}`,
+    `來源頁面：${payload.source || ""}`
+  ].join("\n");
+
+
   // 1. 寄給管理員 (主旨與內文包含單號，且含試算表連結)
   if (ownerEmail) {
     try {
@@ -166,7 +185,7 @@ function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrls, fileCou
         "",
         "表單收到一筆新的填寫資料，內容如下：",
         "----------------------------------------",
-        commonFields,
+        adminFields,
         "----------------------------------------",
         "",
         `Google 試算表連結（僅限管理員）：${sheet.getParent().getUrl()}`
@@ -178,8 +197,8 @@ function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrls, fileCou
     }
   }
 
-  // 2. 寄給填表人 (主旨與內文包含單號，不含試算表連結)
-  if (submitterEmail) {
+  // 2. 寄給填表人 (主旨與內文包含單號，不含試算表連結。若填表人與管理員相同，則不重複發送)
+  if (submitterEmail && submitterEmail !== ownerEmail) {
     try {
       const userSubject = `【TAIAA 技術需求表單】您的需求單號 ${serialNumber} 確認信`;
       const userBody = [
@@ -187,7 +206,7 @@ function notifyOwner_(payload, sheet, serialNumber, folderUrl, fileUrls, fileCou
         "",
         "感謝您填寫 TAIAA 技術需求表單。以下是您的填寫內容備份，我們將盡快與您聯繫：",
         "----------------------------------------",
-        commonFields,
+        userFields,
         "----------------------------------------",
         "",
         "此信件為系統自動發送，請勿直接回覆。"
